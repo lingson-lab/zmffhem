@@ -1,0 +1,236 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="robots" content="noindex,nofollow" />
+  <title>관리사무소 수강 현황 리포트</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Pretendard:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="./style.css" />
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+</head>
+<body>
+  <main class="page-shell">
+    <section class="report">
+      <header class="report-header">
+        <div>
+          <p class="eyebrow">MANAGEMENT OFFICE · REPORT</p>
+          <h1>수강 현황 분석</h1>
+          <p class="subtitle" id="periodText">엑셀 파일을 업로드하면 자동으로 분석됩니다.</p>
+        </div>
+
+        <div class="header-actions">
+          <label class="upload-btn">
+            <input id="excelFile" type="file" accept=".xls,.xlsx,.csv" hidden />
+            거래 내역 업로드
+          </label>
+
+          <label class="upload-btn secondary">
+            <input id="accessFile" type="file" accept=".xls,.xlsx,.csv" hidden />
+            출입 내역 업로드 (선택)
+          </label>
+
+          <select id="monthSelect" aria-label="기준월 선택" disabled>
+            <option>기준월</option>
+          </select>
+
+          <button id="printBtn" class="secondary-btn" type="button">A4 인쇄</button>
+        </div>
+      </header>
+
+      <div class="status-line">
+        <span id="statusDot" class="status-dot"></span>
+        <span id="statusText">분석할 엑셀 파일을 선택해 주세요.</span>
+      </div>
+
+      <section class="kpi-grid">
+        <article class="kpi-card accent">
+          <p>총 실매출액</p>
+          <strong id="totalSales">-</strong>
+          <div id="salesDelta" class="kpi-delta neutral">전월 비교 -</div>
+          <div id="salesBreakdown" class="sales-breakdown">매출 - · 환불 -</div>
+          <span>수강 시작월 기준 · 실매출 = 매출 − 환불 · 취소 제외</span>
+        </article>
+        <article class="kpi-card">
+          <p>총 거래건수</p>
+          <strong id="totalTransactions">-</strong>
+          <div id="transactionsDelta" class="kpi-delta neutral">전월 비교 -</div>
+          <span>선택 월 거래</span>
+        </article>
+        <article class="kpi-card">
+          <p>이용 회원수</p>
+          <strong id="uniqueMembers">-</strong>
+          <div id="membersDelta" class="kpi-delta neutral">전월 비교 -</div>
+          <span>회원명 기준 중복 제외</span>
+        </article>
+        <article class="kpi-card">
+          <p>평균 결제금액</p>
+          <strong id="averagePayment">-</strong>
+          <div id="averageDelta" class="kpi-delta neutral">전월 비교 -</div>
+          <span>실매출 ÷ 정상 거래건수</span>
+        </article>
+      </section>
+
+      <div id="comparisonNote" class="comparison-note">
+        기준월은 수강시작일로 구분합니다. 거래종류가 매출이면 가산, 환불이면 차감, 취소는 제외하며 전월 데이터가 있으면 자동 비교합니다. (999동·9999호 테스트 데이터는 제외)
+      </div>
+
+      <!-- 최고/최저 매출 카드 섹션 -->
+      <section class="highlight-cards" id="highlightCardsSection" style="display:none;">
+        <article class="highlight-card high-sales">
+          <div class="highlight-header">
+            <p class="highlight-label">최고 매출 시설</p>
+            <span class="badge-max">1위</span>
+          </div>
+          <strong id="maxSalesName">-</strong>
+          <div class="highlight-value">
+            <span id="maxSalesAmount">-</span>
+          </div>
+          <div class="highlight-detail">
+            <span id="maxSalesDetail">거래 0건 · 회원 0명</span>
+          </div>
+        </article>
+
+        <article class="highlight-card low-sales">
+          <div class="highlight-header">
+            <p class="highlight-label">최저 매출 시설</p>
+            <span class="badge-min">최저</span>
+          </div>
+          <strong id="minSalesName">-</strong>
+          <div class="highlight-value">
+            <span id="minSalesAmount">-</span>
+          </div>
+          <div class="highlight-detail">
+            <span id="minSalesDetail">거래 0건 · 회원 0명</span>
+          </div>
+        </article>
+      </section>
+
+      <!-- 드롭다운: 시설별 매출 현황 -->
+      <section class="main-grid">
+        <article class="panel facility-panel">
+          <div class="panel-accordion">
+            <button class="accordion-header" id="facilityAccordionBtn">
+              <div class="accordion-title">
+                <p class="panel-kicker">FACILITY SALES</p>
+                <h2>시설별 매출 현황 (상세)</h2>
+              </div>
+              <div class="accordion-controls">
+                <span id="facilityMonthLabel" class="small-badge">-</span>
+                <svg class="accordion-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <polyline points="6 9 12 15 18 9"></polyline>
+                </svg>
+              </div>
+            </button>
+
+            <div class="accordion-content" id="facilityAccordionContent" class="collapsed">
+              <div class="facility-layout">
+                <div class="table-wrap">
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>시설</th>
+                        <th class="num">당월 매출</th>
+                        <th class="num">전월 매출</th>
+                        <th class="num">전월 대비</th>
+                        <th class="num">거래건수</th>
+                        <th class="num">회원수</th>
+                        <th class="num">매출비중</th>
+                      </tr>
+                    </thead>
+                    <tbody id="facilityTable">
+                      <tr><td colspan="7" class="empty">데이터 없음</td></tr>
+                    </tbody>
+                  </table>
+                </div>
+
+                <div class="donut-area">
+                  <div id="donutChart" class="donut" aria-label="시설별 매출 비중">
+                    <div class="donut-center">
+                      <span>총 매출</span>
+                      <strong id="donutTotal">-</strong>
+                    </div>
+                  </div>
+                  <div id="donutLegend" class="legend"></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </article>
+      </section>
+
+      <!-- 피크 시간대 카드 섹션 -->
+      <section class="highlight-cards" id="peakTimeCardsSection" style="display:none;">
+        <article class="highlight-card peak-time">
+          <div class="highlight-header">
+            <p class="highlight-label">피크 시간대</p>
+            <span class="badge-peak">최다</span>
+          </div>
+          <strong id="peakTimeLabel">-</strong>
+          <div class="highlight-value">
+            <span id="peakTimeCount">-</span>
+          </div>
+          <div class="highlight-detail">
+            <span id="peakTimeDetail">이용자 0명</span>
+          </div>
+        </article>
+      </section>
+
+      <!-- 시간대별 출입 현황 -->
+      <section class="main-grid" id="accessSection" style="display:none;">
+        <article class="panel access-panel">
+          <div class="panel-accordion">
+            <button class="accordion-header" id="accessAccordionBtn">
+              <div class="accordion-title">
+                <p class="panel-kicker">TIME BASED ACCESS</p>
+                <h2>시간대별 출입 현황</h2>
+              </div>
+              <div class="accordion-controls">
+                <span id="accessMonthLabel" class="small-badge">-</span>
+                <svg class="accordion-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <polyline points="6 9 12 15 18 9"></polyline>
+                </svg>
+              </div>
+            </button>
+
+            <div class="accordion-content" id="accessAccordionContent" class="collapsed">
+              <div class="access-layout">
+                <div class="chart-area">
+                  <canvas id="accessChart" width="600" height="320"></canvas>
+                </div>
+                <div class="table-wrap">
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>시간대</th>
+                        <th class="num">출입 횟수</th>
+                        <th class="num">이용자 수</th>
+                        <th class="num">비중</th>
+                      </tr>
+                    </thead>
+                    <tbody id="accessTable">
+                      <tr><td colspan="4" class="empty">데이터 없음</td></tr>
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          </div>
+        </article>
+      </section>
+
+      <footer class="report-footer">
+        <div>
+          <strong>관리사무소</strong>
+          <span>수강 현황 분석 시스템</span>
+        </div>
+        <span id="generatedAt">-</span>
+      </footer>
+    </section>
+  </main>
+
+  <script src="./app.js"></script>
+</body>
+</html>
